@@ -46,6 +46,7 @@ def save_doodle():
     image1.save(filename)
 
 def clear_doodle():
+    draw.rectangle((0, 0, 500, 500), fill='white')
     canva.delete('all')
 
 def act_paint(e):
@@ -82,7 +83,7 @@ graph_button = ttk.Button(text="Graph").pack()
 # Doodler Elements
 doodler = tkinter.Toplevel()
 doodler.wm_title("Doodle")
-doodler.wm_geometry('500x550')
+doodler.wm_geometry('500x560')
 canva = tkinter.Canvas(doodler, width=500, height=500, bg='white')
 image1 = PIL.Image.new('RGB', (500, 500), 'white')
 draw = ImageDraw.Draw(image1)
