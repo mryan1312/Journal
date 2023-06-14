@@ -41,10 +41,8 @@ async def getweather(location):
         return (f"{weather.current.temperature}, {weather.current.kind}")
 
 # Doodle Capture
-
-
 def save_doodle():
-    filename = (f"{date.today()}.jpg")
+    filename = (f"{date.today()}.png")
     image1.save(filename)
 
 def clear_doodle():
