@@ -44,7 +44,7 @@ async def getweather(location):
 
 
 def save_doodle():
-    filename = (f"{date.today()}.png")
+    filename = (f"{date.today()}.jpg")
     image1.save(filename)
 
 def clear_doodle():
@@ -59,6 +59,7 @@ def paint(e):
     global lastx, lasty
     x, y = e.x, e.y
     canva.create_line((lastx, lasty, x, y), width=5)
+    draw.line((lastx, lasty, x, y), fill='black', width=5)
     lastx, lasty = x, y
 
 # Data Variables
