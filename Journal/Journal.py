@@ -29,6 +29,30 @@ def open_db(db_file):
         conn.execute(init)
     return conn
 
+def clear_data():
+    def truncate_table():
+        global conn
+        delete_table = '''DROP TABLE JOURNAL;'''
+        init = '''create table if not exists JOURNAL(
+        ENTRY INTEGER PRIMARY KEY AUTOINCREMENT,
+        DATE VARCHAR(255) NOT NULL,
+        RATING INTEGER NOT NULL,
+        WEATHER VARCHAR(255),
+        HEALTHY BIT DEFAULT 1,
+        SLEEP INTEGER,
+        STEPS INTEGER,
+        WEIGHT INTEGER,
+        HIGHLIGHT VARCHAR(255));'''
+        cur.execute(delete_table)
+        cur.execute(init)
+        cleardatapop.destroy()
+    global cleardatapop
+    cleardatapop = tkinter.Toplevel()
+    cleardatapop.wm_title("WARNING")
+    warning_label = ttk.Label(cleardatapop, text="Warning: This is irreversible. Data will be lost! Continue?").pack()
+    clear_continue_button = ttk.Button(cleardatapop, text="Continue", command=truncate_table).pack(side=tkinter.LEFT)
+    clear_cancel_button = ttk.Button(cleardatapop, text="Cancel", command=cleardatapop.destroy).pack(side=tkinter.RIGHT)
+    
 # Get current location for weather
 def getlocation():
     currloc = geocoder.ip('me')
@@ -40,7 +64,23 @@ async def getweather(location):
         weather = await client.get(location)
         return (f"{weather.current.temperature}, {weather.current.kind}")
 
-# Doodle Capture
+# Doodler Elements
+def doodler():
+    global canva
+    global image1
+    global draw
+    doodler = tkinter.Toplevel()
+    doodler.wm_title("Doodle")
+    doodler.wm_geometry('500x530')
+    canva = tkinter.Canvas(doodler, width=500, height=500, bg='white')
+    image1 = PIL.Image.new('RGB', (500, 500), 'white')
+    draw = ImageDraw.Draw(image1)
+    canva.bind('<1>', act_paint)
+    canva.pack()
+    save_button = ttk.Button(doodler, text="Save", command=save_doodle).pack(side=tkinter.RIGHT)
+    clear_button = ttk.Button(doodler, text="Clear", command = clear_doodle).pack(side=tkinter.LEFT)
+
+# Doodle Operations
 def save_doodle():
     filename = (f"{date.today()}.png")
     image1.save(filename)
@@ -63,6 +103,7 @@ def paint(e):
 
 # Data Variables
 conn = open_db('Journal.sqlite')
+cur = conn.cursor()
 location = getlocation()
 weather = asyncio.run(getweather(location))
 
@@ -76,20 +117,29 @@ style = ttk.Style()
 location_label = ttk.Label(text=location).pack()
 weather_label = ttk.Label(text=weather).pack()
 date_label = ttk.Label(text=(date.today())).pack()
-log_button = ttk.Button(text="Log").pack()
-review_button = ttk.Button(text="Review").pack()
-graph_button = ttk.Button(text="Graph").pack()
 
-# Doodler Elements
-doodler = tkinter.Toplevel()
-doodler.wm_title("Doodle")
-doodler.wm_geometry('500x560')
-canva = tkinter.Canvas(doodler, width=500, height=500, bg='white')
-image1 = PIL.Image.new('RGB', (500, 500), 'white')
-draw = ImageDraw.Draw(image1)
-canva.bind('<1>', act_paint)
-canva.pack()
-save_button = ttk.Button(doodler, text="Save", command=save_doodle).pack()
-clear_button = ttk.Button(doodler, text="Clear", command = clear_doodle).pack()
+# Notebook setup for Organization
+notebook = ttk.Notebook(master, width=600, height=380)
+notebook.pack(pady=10, expand=True)
+frame1 = ttk.Frame(notebook, width=600, height=380)
+frame1.pack(fill='both', expand=True)
+frame2 = ttk.Frame(notebook, width=600, height=380)
+frame2.pack(fill='both', expand=True)
+frame3 = ttk.Frame(notebook, width=600, height=380)
+frame3.pack(fill='both', expand=True)
+frame4 = ttk.Frame(notebook, width=600, height=380)
+frame4.pack(fill='both', expand=True)
+notebook.add(frame1, text='Log Entry')
+notebook.add(frame2, text='Review Entries')
+notebook.add(frame3, text='Charting')
+notebook.add(frame4, text='Tools')
+
+# Buttons
+log_button = ttk.Button(frame1, text="Log").pack()
+doodle_button = ttk.Button(frame1, text="Doodle", command=doodler).pack()
+review_button = ttk.Button(frame2, text="Review").pack()
+search_button = ttk.Button(frame2, text="Search").pack()
+graph_button = ttk.Button(frame3, text="Graph").pack()
+cleardata_button = ttk.Button(frame4, text="Clear Data", command=clear_data).pack()
 
 master.mainloop()
