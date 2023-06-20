@@ -10,7 +10,9 @@ import pandas
 import plotly_express
 from datetime import date
 import PIL
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageTk
+import csv
+from tabulate import tabulate
 
 # Database Operations
 def open_db(db_file):                                   
@@ -18,7 +20,8 @@ def open_db(db_file):
     conn = sqlite3.connect(db_file)
     if db_check:
         init = '''create table if not exists JOURNAL(
-        DATE TEXT PRIMARY KEY,
+        ID INTEGER PRIMARY KEY AUTOINCREMENT,
+        DATE TEXT,
         RATING INTEGER NOT NULL,
         WEATHER TEXT,
         HEALTHY BIT DEFAULT 1,
@@ -28,39 +31,59 @@ def open_db(db_file):
         HIGHLIGHT TEXT);'''
         conn.execute(init)
     return conn
-
-def insert_data(date, rating, weather, healthy, sleep, steps, weight, highlight):
+def review_data(log_id):
+    sql = f"SELECT * FROM JOURNAL WHERE ID = '{log_id}';"
+    cursor = conn.cursor()
+    # Selecting index 0 in the tuple to return data as list
     try:
+        data = (cursor.execute(sql).fetchall())[0]
+    except:
+        data = ('',"No Data",'','','','','','','')
+    return data
+def get_last_log():
+    # Returning last log ID for starting point of entry browsing
+    sql = "SELECT ID FROM JOURNAL ORDER BY ID DESC LIMIT 1;"
+    try:
+        last_log = (conn.execute(sql).fetchall()[0])[0]
+        return last_log
+    except:
+        pass
+def insert_data(date, rating, weather, healthy, sleep, steps, weight, highlight):
+    # Checking date of last log entry, only want one per day
+    datecheck = "SELECT DATE FROM JOURNAL ORDER BY ID DESC LIMIT 1;"
+    try:
+        last_date = str(conn.execute(datecheck).fetchall()[0][-2|-3])
+    except:
+        last_date = "Never"
+    if last_date == str(date.today()):
+        messagebox.showerror("Logging Failed", "There is already a log for today. Undo it first if you want to update.")
+    else:
         inserter = f'''INSERT INTO JOURNAL(
         DATE,RATING,WEATHER,HEALTHY,SLEEP,STEPS,WEIGHT,HIGHLIGHT)
         VALUES(
         '{date}',{rating},'{weather}',{healthy},{sleep},{steps},{weight},'{highlight}');'''
         conn.execute(inserter)
-        conn.commit()
-    except:
-        messagebox.showerror("Logging Failed", "There is already a log for today. Undo it first if you want to update.")
-    messagebox.showinfo("Logging Complete", "All data has been saved")
-
+        conn.commit()        
+        messagebox.showinfo("Logging Complete", "All data has been saved")
 def select_today():
     def query_data():
-        query = f'''SELECT * FROM JOURNAL WHERE DATE = '{date.today()}';'''
+        query = f"SELECT * FROM JOURNAL WHERE DATE = '{date.today()}';"
         rows = conn.execute(query).fetchall()
         return rows
     res = query_data()
     print(res)
     messagebox.showinfo("Result", res)
-
 def undo_today():
-    undotoday = f'''DELETE FROM JOURNAL WHERE DATE='{date.today()}';'''
+    undotoday = f"DELETE FROM JOURNAL WHERE DATE='{date.today()}';"
     conn.execute(undotoday)
     messagebox.showinfo("Done", "Daily log cleared.")
-
 def clear_data():
     def truncate_table():
         global conn
         delete_table = '''DROP TABLE JOURNAL;'''
         init = '''create table if not exists JOURNAL(
-        DATE TEXT PRIMARY KEY,
+        ID INTEGER PRIMARY KEY AUTOINCREMENT,
+        DATE TEXT,
         RATING INTEGER NOT NULL,
         WEATHER TEXT,
         HEALTHY BIT DEFAULT 1,
@@ -77,13 +100,21 @@ def clear_data():
     warning_label = ttk.Label(cleardatapop, text="Warning: This is irreversible. Data will be lost! Continue?").pack()
     clear_continue_button = ttk.Button(cleardatapop, text="Continue", command=truncate_table).pack(side=tkinter.LEFT)
     clear_cancel_button = ttk.Button(cleardatapop, text="Cancel", command=cleardatapop.destroy).pack(side=tkinter.RIGHT)
-    
-# Get current location for weather
+def export_data():
+    sql = "SELECT * FROM JOURNAL"
+    data = conn.execute(sql)
+    with open("Export_Data.csv", "w", newline='') as file:
+        writer = csv.writer(file)
+        header = ['ID', 'Date', 'Rating', 'Weather', 'Healthy?', 'Sleep Hours', 'Steps', 'Weight', 'Highlight']
+        writer.writerow(header)
+        for row in data:
+            writer.writerow(row)
+    messagebox.showinfo("Success", "Data has been exported to Export_Data.csv")
+
+# Get current location and weather
 def getlocation():
     currloc = geocoder.ip('me')
     return (f"{currloc.city}, {currloc.state}")
-
-# Get current temp and weather to log
 async def getweather(location):
     async with python_weather.Client(unit=python_weather.IMPERIAL) as client:
         weather = await client.get(location)
@@ -104,27 +135,62 @@ def doodler():
     canva.pack()
     save_button = ttk.Button(doodler, text="Save", command=save_doodle).pack(side=tkinter.RIGHT)
     clear_button = ttk.Button(doodler, text="Clear", command = clear_doodle).pack(side=tkinter.LEFT)
-
-# Doodle Operations
 def save_doodle():
-    filename = (f"{date.today()}.png")
+    if not os.path.isdir(".\Doodles"):
+        os.makedirs(".\Doodles")
+    filename = (f".\Doodles\{date.today()}.png")
     image1.save(filename)
-
 def clear_doodle():
     draw.rectangle((0, 0, 500, 500), fill='white')
     canva.delete('all')
-
 def act_paint(e):
     global lastx, lasty
     canva.bind('<B1-Motion>', paint)
     lastx, lasty = e.x, e.y
-
 def paint(e):
     global lastx, lasty
     x, y = e.x, e.y
     canva.create_line((lastx, lasty, x, y), width=5)
     draw.line((lastx, lasty, x, y), fill='black', width=5)
     lastx, lasty = x, y
+
+# Reading entries from the database
+def log_veiwer():
+    def grab_data(log_id):
+        global ins_img
+        data = list(review_data(log_id))
+        curr_date = data[1]
+        df = pandas.DataFrame({"Date": [data[1]], "Rating": [data[2]], "Weather": [data[3]], "Healthy": [data[4]], "Sleep": [data[5]], "Steps": [data[6]], "Weight": [data[7]], "Highlight": [data[8]]})
+        textview.delete('1.0',"end")
+        textview.insert('1.0', tabulate(df, headers='keys', tablefmt='psql', showindex=False))
+        if os.path.isfile(f".\Doodles\{curr_date}.png"):
+            img = Image.open(f".\Doodles\{curr_date}.png")
+            ins_img = ImageTk.PhotoImage(img)
+            textview.image_create('end', image=ins_img)
+        if log_id <= 0:
+            textview.insert('1.0', "No more logs this way!")
+        if log_id > get_last_log():
+            textview.insert('1.0', "No more logs this way!")
+        return curr_date
+    def prev_id():
+        global log_id
+        log_id -= 1
+        grab_data(log_id)
+    def next_id():
+        global log_id
+        log_id += 1
+        grab_data(log_id)
+    global log_id
+    global ins_img
+    log_id = get_last_log()
+    logview = tkinter.Toplevel()
+    logview.wm_title("View Entries")
+    previous_btn = ttk.Button(logview, text="Previous", command=lambda: prev_id()).grid(row=0, column=0, sticky='W')
+    next_btn = ttk.Button(logview, text="Next", command=lambda: next_id()).grid(row=0, column=3, sticky='E')
+    textview = tkinter.Text(logview, height=45, width=100)
+    textview.grid(row=1, column=1, columnspan=2, sticky='W'+'E')
+    grab_data(log_id)
+
 
 # Data Variables
 conn = open_db('Journal.sqlite')
@@ -175,7 +241,7 @@ log_button = ttk.Button(frame1, text="Log", command=lambda : insert_data(date.to
 # Review Frame
 frame2 = ttk.Frame(notebook, width=600, height=380)
 frame2.pack(fill='both', expand=True)
-review_button = ttk.Button(frame2, text="Review", command = lambda : select_today()).pack()
+review_button = ttk.Button(frame2, text="Review", command=log_veiwer).pack()
 search_button = ttk.Button(frame2, text="Search").pack()
 # Charting Frame
 frame3 = ttk.Frame(notebook, width=600, height=380)
@@ -186,7 +252,7 @@ frame4 = ttk.Frame(notebook, width=600, height=380)
 frame4.pack(fill='both', expand=True)
 undotoday_button = ttk.Button(frame4, text="Undo Today", command=undo_today).pack()
 cleardata_button = ttk.Button(frame4, text="Clear All Data", command=clear_data).pack()
-exportdata_button = ttk.Button(frame4, text="Export All Data").pack()
+exportdata_button = ttk.Button(frame4, text="Export All Data", command=export_data).pack()
 # Adding frames to notebook
 notebook.add(frame1, text='Log Entry')
 notebook.add(frame2, text='Review Entries')
